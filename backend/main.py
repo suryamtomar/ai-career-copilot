@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(title="AI Career Copilot")
-"
+
 
 def get_db_connection():
     return psycopg.connect(
