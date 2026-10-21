@@ -5,7 +5,7 @@ import logging
 import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from openai import OpenAI
+from google import genai
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -48,6 +48,66 @@ class CareerPlanRequest(BaseModel):
     @field_validator("education", "skills", "career_goal")
     @classmethod
     def validate_required_fields(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("This field cannot be empty")
+        return value.strip()
+
+
+class SkillGapRequest(BaseModel):
+    current_skills: str = Field(min_length=1)
+    target_career: str = Field(min_length=1)
+    education: str = Field(
+        default="Not provided",
+        max_length=150,
+    )
+
+    @field_validator("current_skills", "target_career")
+    @classmethod
+    def validate_required_fields(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("This field cannot be empty")
+        return value.strip()
+
+    @field_validator("education")
+    @classmethod
+    def validate_education(cls, value: str) -> str:
+        return value.strip() or "Not provided"
+
+
+# --------------------------------------------------
+# AI INTERVIEW PREPARATION - REQUEST MODELS
+# --------------------------------------------------
+
+class InterviewQuestionsRequest(BaseModel):
+    role: str = Field(min_length=1, max_length=100)
+    topic: str = Field(min_length=1, max_length=100)
+    difficulty: str = Field(default="Medium")
+    number_of_questions: int = Field(default=5, ge=1, le=10)
+
+    @field_validator("role", "topic")
+    @classmethod
+    def validate_required_interview_fields(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("This field cannot be empty")
+        return value.strip()
+
+    @field_validator("difficulty")
+    @classmethod
+    def validate_interview_difficulty(cls, value: str) -> str:
+        value = value.strip().title()
+        if value not in {"Easy", "Medium", "Hard"}:
+            raise ValueError("Difficulty must be Easy, Medium, or Hard")
+        return value
+
+
+class InterviewFeedbackRequest(BaseModel):
+    role: str = Field(min_length=1, max_length=100)
+    question: str = Field(min_length=1, max_length=2000)
+    user_answer: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("role", "question", "user_answer")
+    @classmethod
+    def validate_feedback_fields(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("This field cannot be empty")
         return value.strip()
@@ -98,6 +158,7 @@ def get_project_info():
             "AI Assistance",
             "Job Preparation",
             "Personalized AI Career Roadmap",
+            "AI Skill Gap Analysis",
         ],
     }
 
@@ -128,35 +189,35 @@ def check_database():
 
 
 # --------------------------------------------------
-# AI CAREER PLANNING
+# GEMINI CLIENT
 # --------------------------------------------------
 
-@app.post("/api/career-plan")
-def generate_career_plan(request: CareerPlanRequest):
-    api_key = os.getenv("OPENAI_API_KEY")
+def get_gemini_client():
+    api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         raise HTTPException(
             status_code=500,
-            detail="OpenAI API key is not configured in backend/.env",
+            detail="Gemini API key is not configured in backend/.env",
         )
 
-    try:
-        client = OpenAI(api_key=api_key)
+    return genai.Client(api_key=api_key)
 
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            instructions=(
-                "You are an experienced career mentor and technical "
-                "career coach. Create realistic, personalized career "
-                "roadmaps for students and early-career professionals. "
-                "Consider their education, current skills, and career "
-                "goal. Never guarantee jobs, salaries, or placements. "
-                "Use clear headings, practical steps, and concise "
-                "bullet points."
-            ),
-            input=f"""
-Create a personalized career roadmap.
+
+# --------------------------------------------------
+# AI CAREER PLANNING - GEMINI
+# --------------------------------------------------
+
+@app.post("/api/career-plan")
+def generate_career_plan(request: CareerPlanRequest):
+    try:
+        client = get_gemini_client()
+
+        prompt = f"""
+You are an experienced career mentor and technical career coach.
+
+Create a realistic, personalized career roadmap. Never guarantee jobs,
+salaries, or placements.
 
 EDUCATION:
 {request.education}
@@ -185,11 +246,15 @@ Include these sections:
 
 Make the plan realistic, specific, and actionable.
 Distinguish essential skills from optional skills.
-""",
-            max_output_tokens=1800,
+Use clear headings and concise bullet points.
+"""
+
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
         )
 
-        roadmap = response.output_text
+        roadmap = response.text
 
         if not roadmap:
             raise HTTPException(
@@ -207,18 +272,221 @@ Distinguish essential skills from optional skills.
         raise
 
     except Exception as exc:
-        # Log the detailed error in the backend terminal.
-        logging.exception("Career roadmap generation failed")
-
-        print(f"ERROR TYPE: {type(exc).__name__}", flush=True)
-        print(f"ERROR DETAILS: {exc!s}", flush=True)
+        logging.exception("Gemini career roadmap generation failed")
 
         raise HTTPException(
             status_code=502,
             detail=(
-                f"AI request failed: {type(exc).__name__}. "
+                f"Gemini request failed: {type(exc).__name__}. "
                 "Check the backend terminal for details."
             ),
+        )
+
+
+# --------------------------------------------------
+# AI SKILL GAP ANALYSIS - GEMINI
+# --------------------------------------------------
+
+@app.post("/api/skill-gap")
+def analyze_skill_gap(request: SkillGapRequest):
+    try:
+        client = get_gemini_client()
+
+        prompt = f"""
+You are an experienced technical recruiter, career mentor,
+and skills assessment specialist.
+
+Analyze the user's current skills against the requirements
+of their target career.
+
+USER EDUCATION:
+{request.education}
+
+CURRENT SKILLS:
+{request.current_skills}
+
+TARGET CAREER:
+{request.target_career}
+
+Create a practical and personalized skill gap analysis.
+
+Use these sections:
+
+1. TARGET ROLE OVERVIEW
+   Explain the main responsibilities of this role.
+
+2. EXISTING SKILLS
+   Identify which of the user's listed skills are relevant
+   to the target role. Do not assume proficiency that the
+   user has not stated.
+
+3. SKILLS TO DEVELOP
+   Identify important missing or underdeveloped skills.
+   Explain why each skill matters.
+
+4. PRIORITY TABLE
+   Use these columns:
+   - Skill
+   - Priority (High, Medium, or Low)
+   - Why It Matters
+   - Suggested Learning Activity
+
+5. LEARNING ROADMAP
+   - Weeks 1-2
+   - Weeks 3-4
+   - Weeks 5-8
+   - Weeks 9-12
+
+6. PROJECT RECOMMENDATIONS
+   Suggest two practical projects that demonstrate the
+   target role's relevant skills.
+
+7. PROGRESS CHECKLIST
+   Give measurable tasks the user can complete to assess
+   their progress.
+
+8. FINAL RECOMMENDATIONS
+   Recommend the most important next steps.
+
+Be realistic and specific.
+Do not claim that any skill is missing unless it was not
+mentioned in the provided current skills.
+Explain that the assessment is an estimate, since the user's
+actual proficiency has not been independently tested.
+Do not guarantee employment, salary, or placement.
+Use clear headings and readable bullet points.
+"""
+
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+        )
+
+        analysis = response.text
+
+        if not analysis:
+            raise HTTPException(
+                status_code=502,
+                detail="The AI service returned an empty skill analysis.",
+            )
+
+        return {
+            "message": "Skill gap analysis generated successfully",
+            "target_career": request.target_career,
+            "skill_gap_analysis": analysis,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        logging.exception("Gemini skill gap analysis failed")
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Gemini request failed: {type(exc).__name__}. "
+                "Check the backend terminal for details."
+            ),
+        )
+
+
+# --------------------------------------------------
+# AI INTERVIEW QUESTION GENERATION - GEMINI
+# --------------------------------------------------
+
+@app.post("/api/interview/questions")
+def generate_interview_questions(request: InterviewQuestionsRequest):
+    try:
+        client = get_gemini_client()
+        prompt = f"""
+You are an experienced technical interviewer and interview coach.
+Generate exactly {request.number_of_questions} useful interview questions.
+
+Target role: {request.role}
+Topic/skill: {request.topic}
+Difficulty: {request.difficulty}
+
+Requirements:
+- Number every question clearly.
+- Keep questions relevant to the target role and topic.
+- Include a reasonable mix of conceptual and practical questions when appropriate.
+- For coding topics, include a few problem-solving or code-reading prompts where suitable.
+- Do not provide answers yet; the candidate will practice answering them.
+- Avoid duplicate questions and keep wording clear.
+- Return readable Markdown only.
+"""
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+        )
+        questions = response.text
+        if not questions:
+            raise HTTPException(status_code=502, detail="The AI service returned no interview questions.")
+        return {
+            "message": "Interview questions generated successfully",
+            "role": request.role,
+            "topic": request.topic,
+            "difficulty": request.difficulty,
+            "questions": questions,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.exception("Gemini interview question generation failed")
+        raise HTTPException(
+            status_code=502,
+            detail=(f"Gemini request failed: {type(exc).__name__}. Check the backend terminal for details."),
+        )
+
+
+# --------------------------------------------------
+# AI INTERVIEW ANSWER FEEDBACK - GEMINI
+# --------------------------------------------------
+
+@app.post("/api/interview/feedback")
+def evaluate_interview_answer(request: InterviewFeedbackRequest):
+    try:
+        client = get_gemini_client()
+        prompt = f"""
+You are a supportive but honest technical interview coach.
+Evaluate the candidate's answer for this target role: {request.role}
+
+INTERVIEW QUESTION:
+{request.question}
+
+CANDIDATE ANSWER:
+{request.user_answer}
+
+Return clear Markdown with these sections:
+1. Overall assessment (brief, balanced, and specific)
+2. What was done well
+3. What is missing or inaccurate (do not invent issues; explain uncertainty where relevant)
+4. Suggested improvements (actionable points)
+5. Example of a stronger answer (appropriate to the question and not needlessly long)
+6. One follow-up question to practice
+
+Be constructive and realistic. Do not claim the answer guarantees interview success.
+"""
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+        )
+        feedback = response.text
+        if not feedback:
+            raise HTTPException(status_code=502, detail="The AI service returned no interview feedback.")
+        return {
+            "message": "Interview answer evaluated successfully",
+            "role": request.role,
+            "feedback": feedback,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.exception("Gemini interview feedback generation failed")
+        raise HTTPException(
+            status_code=502,
+            detail=(f"Gemini request failed: {type(exc).__name__}. Check the backend terminal for details."),
         )
 
 

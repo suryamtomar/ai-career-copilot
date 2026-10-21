@@ -1,4 +1,7 @@
+
 import { useEffect, useState, type FormEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './App.css'
 
 type ProjectInfo = {
@@ -24,6 +27,18 @@ type ProfileFormValues = {
   career_goal: string
 }
 
+type CareerPlanResponse = {
+  message: string
+  career_goal: string
+  roadmap: string
+}
+
+type SkillGapResponse = {
+  message: string
+  target_career: string
+  skill_gap_analysis: string
+}
+
 const emptyForm: ProfileFormValues = {
   full_name: '',
   education: '',
@@ -35,35 +50,90 @@ function App() {
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('career-copilot-theme')
+    return savedTheme === 'dark' ? 'dark' : 'light'
+  })
+  const [printTarget, setPrintTarget] = useState<'career' | 'skills' | 'interview' | null>(null)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('career-copilot-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (!printTarget) return
+    document.body.dataset.printTarget = printTarget
+    const finishPrint = () => {
+      delete document.body.dataset.printTarget
+      setPrintTarget(null)
+    }
+    window.addEventListener('afterprint', finishPrint)
+    window.print()
+    return () => window.removeEventListener('afterprint', finishPrint)
+  }, [printTarget])
 
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [profilesError, setProfilesError] = useState('')
 
-  const [formValues, setFormValues] = useState<ProfileFormValues>(emptyForm)
+  const [formValues, setFormValues] =
+    useState<ProfileFormValues>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [formMessage, setFormMessage] = useState('')
   const [formError, setFormError] = useState('')
-  const [editingProfileId, setEditingProfileId] = useState<number | null>(null)
-  const [deletingProfileId, setDeletingProfileId] = useState<number | null>(null)
+  const [editingProfileId, setEditingProfileId] =
+    useState<number | null>(null)
+  const [deletingProfileId, setDeletingProfileId] =
+    useState<number | null>(null)
+
+  // AI career plan state
+  const [careerPlan, setCareerPlan] = useState('')
+  const [careerPlanLoading, setCareerPlanLoading] = useState(false)
+  const [careerPlanError, setCareerPlanError] = useState('')
+  const [careerPlanGoal, setCareerPlanGoal] = useState('')
+
+  // AI skill gap analysis state
+  const [skillGapAnalysis, setSkillGapAnalysis] = useState('')
+  const [skillGapLoading, setSkillGapLoading] = useState(false)
+  const [skillGapError, setSkillGapError] = useState('')
+  const [skillGapGoal, setSkillGapGoal] = useState('')
+
+  // AI interview preparation state
+  const [interviewRole, setInterviewRole] = useState('Full Stack AI Engineer')
+  const [interviewTopic, setInterviewTopic] = useState('Python and FastAPI')
+  const [interviewDifficulty, setInterviewDifficulty] = useState('Medium')
+  const [interviewQuestionCount, setInterviewQuestionCount] = useState('5')
+  const [interviewQuestions, setInterviewQuestions] = useState('')
+  const [interviewQuestionsLoading, setInterviewQuestionsLoading] = useState(false)
+  const [interviewQuestionsError, setInterviewQuestionsError] = useState('')
+  const [practiceQuestion, setPracticeQuestion] = useState('')
+  const [practiceAnswer, setPracticeAnswer] = useState('')
+  const [interviewFeedback, setInterviewFeedback] = useState('')
+  const [interviewFeedbackLoading, setInterviewFeedbackLoading] = useState(false)
+  const [interviewFeedbackError, setInterviewFeedbackError] = useState('')
 
   useEffect(() => {
     async function fetchProjectInfo() {
       try {
         const response = await fetch('/api/info')
+
         if (!response.ok) {
           throw new Error('Failed to fetch project information')
         }
+
         const data: ProjectInfo = await response.json()
         setProjectInfo(data)
       } catch {
-        setError('Could not connect to the backend. Check that FastAPI is running.')
+        setError(
+          'Could not connect to the backend. Check that FastAPI is running.',
+        )
       } finally {
         setLoading(false)
       }
     }
 
-    fetchProjectInfo()
+    void fetchProjectInfo()
   }, [])
 
   async function loadProfiles() {
@@ -72,13 +142,17 @@ function App() {
 
     try {
       const response = await fetch('/api/profiles')
+
       if (!response.ok) {
         throw new Error('Failed to fetch profiles')
       }
+
       const data: UserProfile[] = await response.json()
       setProfiles(data)
     } catch {
-      setProfilesError('Could not load saved profiles. Check that the backend is running.')
+      setProfilesError(
+        'Could not load saved profiles. Check that the backend is running.',
+      )
     } finally {
       setProfilesLoading(false)
     }
@@ -101,19 +175,27 @@ function App() {
 
   function startEditing(profile: UserProfile) {
     setEditingProfileId(profile.id)
+
     setFormValues({
       full_name: profile.full_name,
       education: profile.education ?? '',
       skills: profile.skills ?? '',
       career_goal: profile.career_goal ?? '',
     })
+
     setFormMessage('')
     setFormError('')
-    document.getElementById('profile-form')?.scrollIntoView({ behavior: 'smooth' })
+
+    document
+      .getElementById('profile-form')
+      ?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  async function handleSubmitProfile(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmitProfile(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault()
+
     setSaving(true)
     setFormMessage('')
     setFormError('')
@@ -127,6 +209,7 @@ function App() {
 
     try {
       const isEditing = editingProfileId !== null
+
       const url = isEditing
         ? `/api/profiles/${editingProfileId}`
         : '/api/profiles'
@@ -139,7 +222,10 @@ function App() {
 
       if (!response.ok) {
         const details = await response.text()
-        throw new Error(details || `Failed to ${isEditing ? 'update' : 'create'} profile`)
+        throw new Error(
+          details ||
+            `Failed to ${isEditing ? 'update' : 'create'} profile`,
+        )
       }
 
       const savedProfile: UserProfile = await response.json()
@@ -150,6 +236,7 @@ function App() {
             profile.id === savedProfile.id ? savedProfile : profile,
           ),
         )
+
         setFormMessage('Profile updated successfully!')
       } else {
         setProfiles((current) => [...current, savedProfile])
@@ -160,7 +247,9 @@ function App() {
       setEditingProfileId(null)
     } catch (err) {
       setFormError(
-        err instanceof Error ? err.message : 'Could not save the profile.',
+        err instanceof Error
+          ? err.message
+          : 'Could not save the profile.',
       )
     } finally {
       setSaving(false)
@@ -197,13 +286,212 @@ function App() {
         resetForm()
       }
 
-      setFormMessage(`Profile "${profile.full_name}" deleted successfully.`)
+      setFormMessage(
+        `Profile "${profile.full_name}" deleted successfully.`,
+      )
     } catch (err) {
       setProfilesError(
-        err instanceof Error ? err.message : 'Could not delete the profile.',
+        err instanceof Error
+          ? err.message
+          : 'Could not delete the profile.',
       )
     } finally {
       setDeletingProfileId(null)
+    }
+  }
+
+  // Generate an AI career roadmap using the FastAPI backend.
+  async function handleGenerateCareerPlan() {
+    setCareerPlanError('')
+    setCareerPlan('')
+    setCareerPlanGoal('')
+
+    if (
+      !formValues.education.trim() ||
+      !formValues.skills.trim() ||
+      !formValues.career_goal.trim()
+    ) {
+      setCareerPlanError(
+        'Please fill in Education, Skills, and Career goal in your profile form first.',
+      )
+
+      document
+        .getElementById('profile-form')
+        ?.scrollIntoView({ behavior: 'smooth' })
+
+      return
+    }
+
+    setCareerPlanLoading(true)
+
+    try {
+      const response = await fetch('/api/career-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          education: formValues.education.trim(),
+          skills: formValues.skills.trim(),
+          career_goal: formValues.career_goal.trim(),
+        }),
+      })
+
+      const data: CareerPlanResponse | { detail?: string } =
+        await response.json()
+
+      if (!response.ok) {
+        const message =
+          'detail' in data && data.detail
+            ? data.detail
+            : 'Failed to generate your career plan.'
+
+        throw new Error(message)
+      }
+
+      if (!('roadmap' in data) || !data.roadmap) {
+        throw new Error(
+          'The backend did not return a career roadmap. Please try again.',
+        )
+      }
+
+      setCareerPlan(data.roadmap)
+      setCareerPlanGoal(data.career_goal || formValues.career_goal.trim())
+    } catch (err) {
+      setCareerPlanError(
+        err instanceof Error
+          ? err.message
+          : 'Could not generate your career plan. Please try again.',
+      )
+    } finally {
+      setCareerPlanLoading(false)
+    }
+  }
+
+  // Generate an AI skill gap analysis using the FastAPI backend.
+  async function handleGenerateSkillGap() {
+    setSkillGapError('')
+    setSkillGapAnalysis('')
+    setSkillGapGoal('')
+
+    if (!formValues.skills.trim() || !formValues.career_goal.trim()) {
+      setSkillGapError(
+        'Please fill in Skills and Career goal in your profile form first.',
+      )
+      document
+        .getElementById('profile-form')
+        ?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+
+    setSkillGapLoading(true)
+
+    try {
+      const response = await fetch('/api/skill-gap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          education: formValues.education.trim() || 'Not provided',
+          current_skills: formValues.skills.trim(),
+          target_career: formValues.career_goal.trim(),
+        }),
+      })
+
+      const data: SkillGapResponse | { detail?: string } =
+        await response.json()
+
+      if (!response.ok) {
+        const message =
+          'detail' in data && data.detail
+            ? data.detail
+            : 'Failed to generate your skill gap analysis.'
+        throw new Error(message)
+      }
+
+      if (!('skill_gap_analysis' in data) || !data.skill_gap_analysis) {
+        throw new Error(
+          'The backend did not return a skill gap analysis. Please try again.',
+        )
+      }
+
+      setSkillGapAnalysis(data.skill_gap_analysis)
+      setSkillGapGoal(data.target_career || formValues.career_goal.trim())
+    } catch (err) {
+      setSkillGapError(
+        err instanceof Error
+          ? err.message
+          : 'Could not generate your skill gap analysis. Please try again.',
+      )
+    } finally {
+      setSkillGapLoading(false)
+    }
+  }
+
+  async function handleGenerateInterviewQuestions(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setInterviewQuestionsError('')
+    setInterviewQuestions('')
+    setInterviewFeedback('')
+
+    if (!interviewRole.trim() || !interviewTopic.trim()) {
+      setInterviewQuestionsError('Please enter a target role and interview topic.')
+      return
+    }
+
+    setInterviewQuestionsLoading(true)
+    try {
+      const response = await fetch('/api/interview/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          role: interviewRole.trim(),
+          topic: interviewTopic.trim(),
+          difficulty: interviewDifficulty,
+          number_of_questions: Number(interviewQuestionCount),
+        }),
+      })
+      const data: { questions?: string; detail?: string } = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Could not generate interview questions.')
+      if (!data.questions) throw new Error('The AI service returned no questions. Please try again.')
+      setInterviewQuestions(data.questions)
+    } catch (err) {
+      setInterviewQuestionsError(err instanceof Error ? err.message : 'Could not generate interview questions.')
+    } finally {
+      setInterviewQuestionsLoading(false)
+    }
+  }
+
+  async function handleGetInterviewFeedback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setInterviewFeedbackError('')
+    setInterviewFeedback('')
+    if (!practiceQuestion.trim() || !practiceAnswer.trim()) {
+      setInterviewFeedbackError('Enter the interview question and your answer first.')
+      return
+    }
+    setInterviewFeedbackLoading(true)
+    try {
+      const response = await fetch('/api/interview/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          role: interviewRole.trim(),
+          question: practiceQuestion.trim(),
+          user_answer: practiceAnswer.trim(),
+        }),
+      })
+      const data: { feedback?: string; detail?: string } = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Could not evaluate your answer.')
+      if (!data.feedback) throw new Error('The AI service returned no feedback. Please try again.')
+      setInterviewFeedback(data.feedback)
+    } catch (err) {
+      setInterviewFeedbackError(err instanceof Error ? err.message : 'Could not evaluate your answer.')
+    } finally {
+      setInterviewFeedbackLoading(false)
     }
   }
 
@@ -212,6 +500,7 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">C</div>
+
           <div>
             <h2>Career Copilot</h2>
             <span>YOUR CAREER, ELEVATED</span>
@@ -224,15 +513,19 @@ function App() {
           <a href="#dashboard" className="nav-item active">
             <span>▦</span> Dashboard
           </a>
+
           <a href="#profile-form" className="nav-item">
             <span>♙</span> My Profile
           </a>
+
           <a href="#career" className="nav-item">
             <span>◎</span> Career Planning
           </a>
+
           <a href="#skills" className="nav-item">
             <span>◇</span> Skill Gap Analysis
           </a>
+
           <a href="#interview" className="nav-item">
             <span>▤</span> Interview Preparation
           </a>
@@ -244,6 +537,7 @@ function App() {
             <h3>Your next chapter starts here.</h3>
             <p>Build skills. Find direction. Get career-ready.</p>
           </div>
+
           <p className="sidebar-footer">AI CAREER COPILOT · V1.0</p>
         </div>
       </aside>
@@ -255,13 +549,26 @@ function App() {
             <h1>Dashboard</h1>
           </div>
 
-          <div className="connection-status">
-            <span className={`status-dot ${projectInfo ? 'online' : ''}`} />
-            {loading
-              ? 'Connecting...'
-              : projectInfo
-                ? 'Backend connected'
-                : 'Backend unavailable'}
+          <div className="topbar-actions">
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            >
+              <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
+              <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
+            </button>
+
+            <div className="connection-status">
+              <span className={`status-dot ${projectInfo ? 'online' : ''}`} />
+              {loading
+                ? 'Connecting...'
+                : projectInfo
+                  ? 'Backend connected'
+                  : 'Backend unavailable'}
+            </div>
           </div>
         </header>
 
@@ -273,12 +580,17 @@ function App() {
 
         <section className="welcome-banner">
           <div className="welcome-content">
-            <span className="eyebrow">YOUR PERSONAL CAREER ASSISTANT</span>
+            <span className="eyebrow">
+              YOUR PERSONAL CAREER ASSISTANT
+            </span>
+
             <h2>Turn your potential into progress.</h2>
+
             <p>
-              Organize your skills, define your goals, and build a clear path
-              toward your dream career.
+              Organize your skills, define your goals, and build a clear
+              path toward your dream career.
             </p>
+
             <a className="primary-button" href="#profile-form">
               Set up your profile <span>→</span>
             </a>
@@ -307,10 +619,12 @@ function App() {
               <div className="feature-icon purple">♙</div>
               <span className="card-label">01 · FOUNDATION</span>
               <h3>Career Profile</h3>
+
               <p>
-                Keep your education, skills, and career goals organized in one
-                place.
+                Keep your education, skills, and career goals organized
+                in one place.
               </p>
+
               <a href="#profile-form">
                 Build your profile <span>→</span>
               </a>
@@ -319,40 +633,60 @@ function App() {
             <article className="feature-card" id="career">
               <div className="feature-icon blue">◎</div>
               <span className="card-label">02 · DIRECTION</span>
-              <h3>Career Planning</h3>
+              <h3>AI Career Planning</h3>
+
               <p>
-                Turn your ambitions into manageable steps and a clearer
-                learning path.
+                Generate a personalized career roadmap using your
+                education, skills, and career goal.
               </p>
-              <span className="coming-soon">Coming soon</span>
+
+              <a href="#career-planner">
+                Create your roadmap <span>→</span>
+              </a>
             </article>
 
             <article className="feature-card" id="skills">
               <div className="feature-icon green">◇</div>
               <span className="card-label">03 · DEVELOPMENT</span>
               <h3>Skill Gap Analysis</h3>
-              <p>Identify the skills you need to develop for your target role.</p>
-              <span className="coming-soon">Coming soon</span>
+
+              <p>
+                Identify the skills you need to develop for your
+                target role.
+              </p>
+
+              <a className="feature-link" href="#skill-gap-analyzer">Analyze your skills <span>→</span></a>
             </article>
 
             <article className="feature-card" id="interview">
               <div className="feature-icon orange">▤</div>
               <span className="card-label">04 · PREPARATION</span>
               <h3>Interview Prep</h3>
+
               <p>
-                Prepare for technical and behavioral interviews with structured
-                practice.
+                Prepare for technical and behavioral interviews with
+                structured practice.
               </p>
-              <span className="coming-soon">Coming soon</span>
+
+              <a className="feature-link" href="#interview-preparation">Start practicing <span>→</span></a>
             </article>
           </div>
         </section>
 
-        <section className="section-block profile-form-section" id="profile-form">
+        <section
+          className="section-block profile-form-section"
+          id="profile-form"
+        >
           <div className="section-heading">
             <div>
               <span className="eyebrow">FIRST THINGS FIRST</span>
-              <h2>{editingProfileId ? 'Edit your career profile' : 'Create your career profile'}</h2>
+
+              <h2>
+                {editingProfileId
+                  ? 'Edit your career profile'
+                  : 'Create your career profile'}
+              </h2>
+
               <p>
                 {editingProfileId
                   ? `Update the details for profile ID ${editingProfileId}.`
@@ -364,12 +698,15 @@ function App() {
           <form className="profile-form" onSubmit={handleSubmitProfile}>
             <div className="form-field">
               <label htmlFor="fullName">Full name *</label>
+
               <input
                 id="fullName"
                 type="text"
                 placeholder="Enter your full name"
                 value={formValues.full_name}
-                onChange={(event) => updateField('full_name', event.target.value)}
+                onChange={(event) =>
+                  updateField('full_name', event.target.value)
+                }
                 maxLength={100}
                 required
               />
@@ -377,35 +714,44 @@ function App() {
 
             <div className="form-field">
               <label htmlFor="education">Education</label>
+
               <input
                 id="education"
                 type="text"
                 placeholder="e.g. B.Tech Computer Science"
                 value={formValues.education}
-                onChange={(event) => updateField('education', event.target.value)}
+                onChange={(event) =>
+                  updateField('education', event.target.value)
+                }
                 maxLength={150}
               />
             </div>
 
             <div className="form-field">
               <label htmlFor="skills">Skills</label>
+
               <textarea
                 id="skills"
                 placeholder="e.g. Python, React, FastAPI, PostgreSQL"
                 value={formValues.skills}
-                onChange={(event) => updateField('skills', event.target.value)}
+                onChange={(event) =>
+                  updateField('skills', event.target.value)
+                }
                 rows={3}
               />
             </div>
 
             <div className="form-field">
               <label htmlFor="careerGoal">Career goal</label>
+
               <input
                 id="careerGoal"
                 type="text"
                 placeholder="e.g. Full Stack AI Engineer"
                 value={formValues.career_goal}
-                onChange={(event) => updateField('career_goal', event.target.value)}
+                onChange={(event) =>
+                  updateField('career_goal', event.target.value)
+                }
                 maxLength={200}
               />
             </div>
@@ -423,7 +769,11 @@ function App() {
             )}
 
             <div className="profile-form-actions">
-              <button className="submit-button" type="submit" disabled={saving}>
+              <button
+                className="submit-button"
+                type="submit"
+                disabled={saving}
+              >
                 {saving
                   ? editingProfileId
                     ? 'Updating profile...'
@@ -431,6 +781,7 @@ function App() {
                   : editingProfileId
                     ? 'Update profile'
                     : 'Save profile'}
+
                 {!saving && <span>→</span>}
               </button>
 
@@ -448,12 +799,307 @@ function App() {
           </form>
         </section>
 
+        {/* AI Career Planning */}
+        <section
+          className="section-block profile-form-section"
+          id="career-planner"
+        >
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">POWERED BY GEMINI AI</span>
+              <h2>Generate your career roadmap</h2>
+
+              <p>
+                Get a personalized learning plan based on the details
+                in your profile form above.
+              </p>
+            </div>
+          </div>
+
+          <div className="profile-form">
+            <div className="form-field">
+              <label>Education</label>
+              <p>{formValues.education.trim() || 'Not provided yet'}</p>
+            </div>
+
+            <div className="form-field">
+              <label>Skills</label>
+              <p>{formValues.skills.trim() || 'Not provided yet'}</p>
+            </div>
+
+            <div className="form-field">
+              <label>Career goal</label>
+              <p>
+                {formValues.career_goal.trim() || 'Not provided yet'}
+              </p>
+            </div>
+
+            <div className="profile-form-actions">
+              <button
+                className="submit-button"
+                type="button"
+                onClick={() => void handleGenerateCareerPlan()}
+                disabled={careerPlanLoading}
+              >
+                {careerPlanLoading
+                  ? 'Generating your roadmap...'
+                  : '✦ Generate Career Plan'}
+
+                {!careerPlanLoading && <span>→</span>}
+              </button>
+            </div>
+
+            {careerPlanLoading && (
+              <p role="status">
+                Gemini AI is preparing your personalized roadmap.
+                Please wait...
+              </p>
+            )}
+
+            {careerPlanError && (
+              <p className="error-message" role="alert">
+                {careerPlanError}
+              </p>
+            )}
+
+            {careerPlan && (
+              <div
+                className={`career-plan-result ${printTarget === 'career' ? 'print-selected' : ''}`}
+                aria-live="polite"
+              >
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">
+                      YOUR PERSONALIZED ROADMAP
+                    </span>
+
+                    <h2>
+                      {careerPlanGoal || 'Your Career Plan'}
+                    </h2>
+
+                    <p>
+                      Generated by Gemini AI. Use this roadmap as a
+                      guide for your learning and career preparation.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="career-plan-content markdown-report">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {careerPlan}
+                  </ReactMarkdown>
+                </div>
+
+                <div className="profile-form-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setPrintTarget('career')}
+                  >
+                    Print / Save as PDF
+                  </button>
+
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      setCareerPlan('')
+                      setCareerPlanError('')
+                      setCareerPlanGoal('')
+                    }}
+                  >
+                    Clear roadmap
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* AI Skill Gap Analysis */}
+        <section
+          className="section-block profile-form-section"
+          id="skill-gap-analyzer"
+        >
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">POWERED BY GEMINI AI</span>
+              <h2>Discover your skill gaps</h2>
+              <p>
+                Compare your current skills with your target career and get
+                prioritized learning recommendations.
+              </p>
+            </div>
+          </div>
+
+          <div className="profile-form">
+            <div className="form-field">
+              <label>Current skills</label>
+              <p>
+                {formValues.skills.trim() ||
+                  'Add your skills in your profile above'}
+              </p>
+            </div>
+
+            <div className="form-field">
+              <label>Target career</label>
+              <p>
+                {formValues.career_goal.trim() ||
+                  'Add your career goal in your profile above'}
+              </p>
+            </div>
+
+            <div className="profile-form-actions">
+              <button
+                className="submit-button"
+                type="button"
+                onClick={() => void handleGenerateSkillGap()}
+                disabled={skillGapLoading}
+              >
+                {skillGapLoading
+                  ? 'Analyzing your skills...'
+                  : '✦ Generate Skill Gap Analysis'}
+                {!skillGapLoading && <span>→</span>}
+              </button>
+            </div>
+
+            {skillGapLoading && (
+              <p role="status">
+                Gemini AI is comparing your skills with your target role.
+                Please wait...
+              </p>
+            )}
+
+            {skillGapError && (
+              <p className="error-message" role="alert">
+                {skillGapError}
+              </p>
+            )}
+
+            {skillGapAnalysis && (
+              <div className={`career-plan-result ${printTarget === 'skills' ? 'print-selected' : ''}`} aria-live="polite">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">
+                      YOUR SKILL DEVELOPMENT REPORT
+                    </span>
+                    <h2>{skillGapGoal || 'Skill Gap Analysis'}</h2>
+                    <p>
+                      Generated by Gemini AI. Use these recommendations to
+                      prioritize your next learning steps.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="career-plan-content markdown-report">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {skillGapAnalysis}
+                  </ReactMarkdown>
+                </div>
+
+                <div className="profile-form-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setPrintTarget('skills')}
+                  >
+                    Print / Save as PDF
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      setSkillGapAnalysis('')
+                      setSkillGapError('')
+                      setSkillGapGoal('')
+                    }}
+                  >
+                    Clear analysis
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* AI Interview Preparation */}
+        <section className="section-block profile-form-section interview-section" id="interview-preparation">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">PRACTICE WITH GEMINI AI</span>
+              <h2>AI Interview Preparation</h2>
+              <p>Generate role-specific questions, practice your response, and get actionable feedback.</p>
+            </div>
+          </div>
+
+          <form className="profile-form interview-setup-form" onSubmit={handleGenerateInterviewQuestions}>
+            <div className="form-field">
+              <label htmlFor="interview-role">Target role</label>
+              <input id="interview-role" value={interviewRole} onChange={(event) => setInterviewRole(event.target.value)} maxLength={100} required placeholder="e.g. Python Developer" />
+            </div>
+            <div className="form-field">
+              <label htmlFor="interview-topic">Topic or skill</label>
+              <input id="interview-topic" value={interviewTopic} onChange={(event) => setInterviewTopic(event.target.value)} maxLength={100} required placeholder="e.g. SQL, React, DSA" />
+            </div>
+            <div className="form-field">
+              <label htmlFor="interview-difficulty">Difficulty</label>
+              <select id="interview-difficulty" value={interviewDifficulty} onChange={(event) => setInterviewDifficulty(event.target.value)}>
+                <option value="Easy">Easy</option><option value="Medium">Medium</option><option value="Hard">Hard</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label htmlFor="interview-count">Number of questions</label>
+              <select id="interview-count" value={interviewQuestionCount} onChange={(event) => setInterviewQuestionCount(event.target.value)}>
+                <option value="3">3 questions</option><option value="5">5 questions</option><option value="8">8 questions</option><option value="10">10 questions</option>
+              </select>
+            </div>
+            <div className="interview-form-submit">
+              <button className="submit-button" type="submit" disabled={interviewQuestionsLoading}>
+                {interviewQuestionsLoading ? 'Generating questions…' : 'Generate interview questions'} <span>→</span>
+              </button>
+            </div>
+          </form>
+
+          {interviewQuestionsError && <p className="error-message interview-message" role="alert">{interviewQuestionsError}</p>}
+          {interviewQuestions && (
+            <div className="career-plan-result interview-result" aria-live="polite">
+              <div className="section-heading">
+                <div><span className="eyebrow">YOUR PRACTICE SET</span><h2>{interviewRole} · {interviewDifficulty}</h2><p>Choose a question below or copy it into the practice form to receive feedback.</p></div>
+                <button className="secondary-button" type="button" onClick={() => { setInterviewQuestions(''); setInterviewFeedback(''); setInterviewFeedbackError('') }}>Clear questions</button>
+              </div>
+              <div className="career-plan-content markdown-report"><ReactMarkdown remarkPlugins={[remarkGfm]}>{interviewQuestions}</ReactMarkdown></div>
+            </div>
+          )}
+
+          <div className="interview-practice-panel">
+            <div className="section-heading"><div><h2>Practice your answer</h2><p>Paste one question and write your answer. Gemini will assess relevance, clarity, accuracy, and suggest a stronger answer.</p></div></div>
+            <form className="interview-answer-form" onSubmit={handleGetInterviewFeedback}>
+              <div className="form-field">
+                <label htmlFor="practice-question">Interview question</label>
+                <textarea id="practice-question" rows={3} maxLength={2000} value={practiceQuestion} onChange={(event) => setPracticeQuestion(event.target.value)} required placeholder="Paste one of the generated questions here…" />
+              </div>
+              <div className="form-field">
+                <label htmlFor="practice-answer">Your answer</label>
+                <textarea id="practice-answer" rows={6} maxLength={5000} value={practiceAnswer} onChange={(event) => setPracticeAnswer(event.target.value)} required placeholder="Write your answer as if you were speaking in an interview…" />
+              </div>
+              {interviewFeedbackError && <p className="error-message" role="alert">{interviewFeedbackError}</p>}
+              <div className="profile-form-actions">
+                <button className="submit-button" type="submit" disabled={interviewFeedbackLoading}>{interviewFeedbackLoading ? 'Evaluating answer…' : 'Get AI feedback'} <span>→</span></button>
+                <button className="secondary-button" type="button" onClick={() => { setPracticeQuestion(''); setPracticeAnswer(''); setInterviewFeedback(''); setInterviewFeedbackError('') }}>Clear practice</button>
+              </div>
+            </form>
+            {interviewFeedback && <div className={`career-plan-result interview-result ${printTarget === 'interview' ? 'print-selected' : ''}`} aria-live="polite"><div className="section-heading"><div><span className="eyebrow">AI COACH FEEDBACK</span><h2>Answer review</h2></div><button className="secondary-button" type="button" onClick={() => setPrintTarget('interview')}>Print / Save as PDF</button></div><div className="career-plan-content markdown-report"><ReactMarkdown remarkPlugins={[remarkGfm]}>{interviewFeedback}</ReactMarkdown></div></div>}
+          </div>
+        </section>
+
+        {/* Saved profiles */}
         <section className="section-block">
           <div className="section-heading">
             <div>
               <h2>Saved profiles</h2>
               <p>Profiles retrieved from your PostgreSQL database.</p>
             </div>
+
             <button
               className="secondary-button"
               type="button"
@@ -472,9 +1118,9 @@ function App() {
             </p>
           )}
 
-          {!profilesLoading && !profilesError && profiles.length === 0 && (
-            <p>No saved profiles yet.</p>
-          )}
+          {!profilesLoading &&
+            !profilesError &&
+            profiles.length === 0 && <p>No saved profiles yet.</p>}
 
           <div className="saved-profiles">
             {profiles.map((profile) => (
@@ -487,16 +1133,23 @@ function App() {
                 <h3>{profile.full_name}</h3>
 
                 <p>
-                  <strong>Education:</strong> {profile.education || 'Not provided'}
+                  <strong>Education:</strong>{' '}
+                  {profile.education || 'Not provided'}
                 </p>
+
                 <p>
-                  <strong>Skills:</strong> {profile.skills || 'Not provided'}
+                  <strong>Skills:</strong>{' '}
+                  {profile.skills || 'Not provided'}
                 </p>
+
                 <p>
-                  <strong>Career goal:</strong> {profile.career_goal || 'Not provided'}
+                  <strong>Career goal:</strong>{' '}
+                  {profile.career_goal || 'Not provided'}
                 </p>
+
                 <p className="profile-date">
-                  Created: {new Date(profile.created_at).toLocaleDateString()}
+                  Created:{' '}
+                  {new Date(profile.created_at).toLocaleDateString()}
                 </p>
 
                 <div className="profile-card-actions">
@@ -508,13 +1161,18 @@ function App() {
                   >
                     Edit
                   </button>
+
                   <button
                     className="delete-button"
                     type="button"
                     onClick={() => void handleDeleteProfile(profile)}
-                    disabled={deletingProfileId !== null || saving}
+                    disabled={
+                      deletingProfileId !== null || saving
+                    }
                   >
-                    {deletingProfileId === profile.id ? 'Deleting...' : 'Delete'}
+                    {deletingProfileId === profile.id
+                      ? 'Deleting...'
+                      : 'Delete'}
                   </button>
                 </div>
               </article>
@@ -524,6 +1182,7 @@ function App() {
 
         <footer className="app-footer">
           <span>AI Career Copilot</span>
+
           <span>
             {projectInfo
               ? `${projectInfo.project} · v${projectInfo.version}`
