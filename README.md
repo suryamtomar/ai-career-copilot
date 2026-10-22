@@ -86,6 +86,7 @@ Open a terminal in the project root:
 ```bash
 cd backend
 python -m venv .venv
+or ./run.bat
 ```
 
 Activate the virtual environment.
