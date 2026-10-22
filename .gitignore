@@ -1,0 +1,34 @@
+
+# Secrets and environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+
+# Local configuration, test output and backups
+*.local
+coverage/
+*.backup

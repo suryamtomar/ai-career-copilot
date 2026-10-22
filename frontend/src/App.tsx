@@ -46,7 +46,16 @@ const emptyForm: ProfileFormValues = {
   career_goal: '',
 }
 
+type AppPage = 'dashboard' | 'profile' | 'career' | 'skills' | 'interview'
+
 function App() {
+  const [activePage, setActivePage] = useState<AppPage>(() => {
+    const savedPage = localStorage.getItem('career-copilot-active-page')
+    const validPages: AppPage[] = ['dashboard', 'profile', 'career', 'skills', 'interview']
+    return savedPage && validPages.includes(savedPage as AppPage)
+      ? (savedPage as AppPage)
+      : 'dashboard'
+  })
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -74,6 +83,8 @@ function App() {
   }, [printTarget])
 
   const [profiles, setProfiles] = useState<UserProfile[]>([])
+  // The selected saved profile is the single source of truth for all career sections.
+  const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [profilesError, setProfilesError] = useState('')
 
@@ -88,30 +99,57 @@ function App() {
     useState<number | null>(null)
 
   // AI career plan state
-  const [careerPlan, setCareerPlan] = useState('')
+  const [careerPlan, setCareerPlan] = useState(() => localStorage.getItem('career-copilot-roadmap') || '')
   const [careerPlanLoading, setCareerPlanLoading] = useState(false)
   const [careerPlanError, setCareerPlanError] = useState('')
-  const [careerPlanGoal, setCareerPlanGoal] = useState('')
+  const [careerPlanGoal, setCareerPlanGoal] = useState(() => localStorage.getItem('career-copilot-roadmap-goal') || '')
 
   // AI skill gap analysis state
-  const [skillGapAnalysis, setSkillGapAnalysis] = useState('')
+  const [skillGapAnalysis, setSkillGapAnalysis] = useState(() => localStorage.getItem('career-copilot-skill-gap') || '')
   const [skillGapLoading, setSkillGapLoading] = useState(false)
   const [skillGapError, setSkillGapError] = useState('')
-  const [skillGapGoal, setSkillGapGoal] = useState('')
+  const [skillGapGoal, setSkillGapGoal] = useState(() => localStorage.getItem('career-copilot-skill-gap-goal') || '')
 
   // AI interview preparation state
-  const [interviewRole, setInterviewRole] = useState('Full Stack AI Engineer')
-  const [interviewTopic, setInterviewTopic] = useState('Python and FastAPI')
-  const [interviewDifficulty, setInterviewDifficulty] = useState('Medium')
-  const [interviewQuestionCount, setInterviewQuestionCount] = useState('5')
-  const [interviewQuestions, setInterviewQuestions] = useState('')
+  const [interviewRole, setInterviewRole] = useState(() => localStorage.getItem('career-copilot-interview-role') || 'Full Stack AI Engineer')
+  const [interviewTopic, setInterviewTopic] = useState(() => localStorage.getItem('career-copilot-interview-topic') || 'Python and FastAPI')
+  const [interviewDifficulty, setInterviewDifficulty] = useState(() => localStorage.getItem('career-copilot-interview-difficulty') || 'Medium')
+  const [interviewQuestionCount, setInterviewQuestionCount] = useState(() => localStorage.getItem('career-copilot-interview-count') || '5')
+  const [interviewQuestions, setInterviewQuestions] = useState(() => localStorage.getItem('career-copilot-interview-questions') || '')
   const [interviewQuestionsLoading, setInterviewQuestionsLoading] = useState(false)
   const [interviewQuestionsError, setInterviewQuestionsError] = useState('')
-  const [practiceQuestion, setPracticeQuestion] = useState('')
-  const [practiceAnswer, setPracticeAnswer] = useState('')
-  const [interviewFeedback, setInterviewFeedback] = useState('')
+  const [practiceQuestion, setPracticeQuestion] = useState(() => localStorage.getItem('career-copilot-practice-question') || '')
+  const [practiceAnswer, setPracticeAnswer] = useState(() => localStorage.getItem('career-copilot-practice-answer') || '')
+  const [interviewFeedback, setInterviewFeedback] = useState(() => localStorage.getItem('career-copilot-interview-feedback') || '')
   const [interviewFeedbackLoading, setInterviewFeedbackLoading] = useState(false)
   const [interviewFeedbackError, setInterviewFeedbackError] = useState('')
+
+
+  // Restore the user's current workspace and generated results after a browser refresh.
+  useEffect(() => {
+    localStorage.setItem('career-copilot-active-page', activePage)
+  }, [activePage])
+
+  useEffect(() => {
+    localStorage.setItem('career-copilot-roadmap', careerPlan)
+    localStorage.setItem('career-copilot-roadmap-goal', careerPlanGoal)
+  }, [careerPlan, careerPlanGoal])
+
+  useEffect(() => {
+    localStorage.setItem('career-copilot-skill-gap', skillGapAnalysis)
+    localStorage.setItem('career-copilot-skill-gap-goal', skillGapGoal)
+  }, [skillGapAnalysis, skillGapGoal])
+
+  useEffect(() => {
+    localStorage.setItem('career-copilot-interview-questions', interviewQuestions)
+    localStorage.setItem('career-copilot-interview-role', interviewRole)
+    localStorage.setItem('career-copilot-interview-topic', interviewTopic)
+    localStorage.setItem('career-copilot-interview-difficulty', interviewDifficulty)
+    localStorage.setItem('career-copilot-interview-count', interviewQuestionCount)
+    localStorage.setItem('career-copilot-practice-question', practiceQuestion)
+    localStorage.setItem('career-copilot-practice-answer', practiceAnswer)
+    localStorage.setItem('career-copilot-interview-feedback', interviewFeedback)
+  }, [interviewQuestions, interviewRole, interviewTopic, interviewDifficulty, interviewQuestionCount, practiceQuestion, practiceAnswer, interviewFeedback])
 
   useEffect(() => {
     async function fetchProjectInfo() {
@@ -149,6 +187,12 @@ function App() {
 
       const data: UserProfile[] = await response.json()
       setProfiles(data)
+      setActiveProfile((current) => {
+        if (current) {
+          return data.find((profile) => profile.id === current.id) ?? data[data.length - 1] ?? null
+        }
+        return data[data.length - 1] ?? null
+      })
     } catch {
       setProfilesError(
         'Could not load saved profiles. Check that the backend is running.',
@@ -191,6 +235,24 @@ function App() {
       ?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  function editActiveProfile() {
+    if (!activeProfile) {
+      setActivePage('profile')
+      return
+    }
+
+    setEditingProfileId(activeProfile.id)
+    setFormValues({
+      full_name: activeProfile.full_name,
+      education: activeProfile.education ?? '',
+      skills: activeProfile.skills ?? '',
+      career_goal: activeProfile.career_goal ?? '',
+    })
+    setFormMessage('')
+    setFormError('')
+    setActivePage('profile')
+  }
+
   async function handleSubmitProfile(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -229,6 +291,8 @@ function App() {
       }
 
       const savedProfile: UserProfile = await response.json()
+      // Keep the saved data available after the form is cleared.
+      setActiveProfile(savedProfile)
 
       if (isEditing) {
         setProfiles((current) =>
@@ -278,9 +342,11 @@ function App() {
         throw new Error(details || 'Failed to delete profile')
       }
 
-      setProfiles((current) =>
-        current.filter((item) => item.id !== profile.id),
-      )
+      const remainingProfiles = profiles.filter((item) => item.id !== profile.id)
+      setProfiles(remainingProfiles)
+      if (activeProfile?.id === profile.id) {
+        setActiveProfile(remainingProfiles[remainingProfiles.length - 1] ?? null)
+      }
 
       if (editingProfileId === profile.id) {
         resetForm()
@@ -307,9 +373,9 @@ function App() {
     setCareerPlanGoal('')
 
     if (
-      !formValues.education.trim() ||
-      !formValues.skills.trim() ||
-      !formValues.career_goal.trim()
+      !activeProfile?.education?.trim() ||
+      !activeProfile?.skills?.trim() ||
+      !activeProfile?.career_goal?.trim()
     ) {
       setCareerPlanError(
         'Please fill in Education, Skills, and Career goal in your profile form first.',
@@ -332,9 +398,9 @@ function App() {
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          education: formValues.education.trim(),
-          skills: formValues.skills.trim(),
-          career_goal: formValues.career_goal.trim(),
+          education: activeProfile.education!.trim(),
+          skills: activeProfile.skills!.trim(),
+          career_goal: activeProfile.career_goal!.trim(),
         }),
       })
 
@@ -357,7 +423,7 @@ function App() {
       }
 
       setCareerPlan(data.roadmap)
-      setCareerPlanGoal(data.career_goal || formValues.career_goal.trim())
+      setCareerPlanGoal(data.career_goal || activeProfile.career_goal || '')
     } catch (err) {
       setCareerPlanError(
         err instanceof Error
@@ -375,7 +441,7 @@ function App() {
     setSkillGapAnalysis('')
     setSkillGapGoal('')
 
-    if (!formValues.skills.trim() || !formValues.career_goal.trim()) {
+    if (!activeProfile?.skills?.trim() || !activeProfile?.career_goal?.trim()) {
       setSkillGapError(
         'Please fill in Skills and Career goal in your profile form first.',
       )
@@ -395,9 +461,9 @@ function App() {
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          education: formValues.education.trim() || 'Not provided',
-          current_skills: formValues.skills.trim(),
-          target_career: formValues.career_goal.trim(),
+          education: activeProfile.education?.trim() || 'Not provided',
+          current_skills: activeProfile.skills!.trim(),
+          target_career: activeProfile.career_goal!.trim(),
         }),
       })
 
@@ -419,7 +485,7 @@ function App() {
       }
 
       setSkillGapAnalysis(data.skill_gap_analysis)
-      setSkillGapGoal(data.target_career || formValues.career_goal.trim())
+      setSkillGapGoal(data.target_career || activeProfile.career_goal || '')
     } catch (err) {
       setSkillGapError(
         err instanceof Error
@@ -509,24 +575,20 @@ function App() {
 
         <p className="nav-label">WORKSPACE</p>
 
-        <nav className="navigation">
-          <a href="#dashboard" className="nav-item active">
+        <nav className="navigation" aria-label="Main navigation">
+          <a href="#dashboard" className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`} aria-current={activePage === 'dashboard' ? 'page' : undefined} onClick={(event) => { event.preventDefault(); setActivePage('dashboard') }}>
             <span>▦</span> Dashboard
           </a>
-
-          <a href="#profile-form" className="nav-item">
+          <a href="#profile-form" className={`nav-item ${activePage === 'profile' ? 'active' : ''}`} aria-current={activePage === 'profile' ? 'page' : undefined} onClick={(event) => { event.preventDefault(); setActivePage('profile') }}>
             <span>♙</span> My Profile
           </a>
-
-          <a href="#career" className="nav-item">
+          <a href="#career-planner" className={`nav-item ${activePage === 'career' ? 'active' : ''}`} aria-current={activePage === 'career' ? 'page' : undefined} onClick={(event) => { event.preventDefault(); setActivePage('career') }}>
             <span>◎</span> Career Planning
           </a>
-
-          <a href="#skills" className="nav-item">
+          <a href="#skill-gap-analyzer" className={`nav-item ${activePage === 'skills' ? 'active' : ''}`} aria-current={activePage === 'skills' ? 'page' : undefined} onClick={(event) => { event.preventDefault(); setActivePage('skills') }}>
             <span>◇</span> Skill Gap Analysis
           </a>
-
-          <a href="#interview" className="nav-item">
+          <a href="#interview-preparation" className={`nav-item ${activePage === 'interview' ? 'active' : ''}`} aria-current={activePage === 'interview' ? 'page' : undefined} onClick={(event) => { event.preventDefault(); setActivePage('interview') }}>
             <span>▤</span> Interview Preparation
           </a>
         </nav>
@@ -545,8 +607,8 @@ function App() {
       <main className="main-content" id="dashboard">
         <header className="topbar">
           <div>
-            <p className="breadcrumb">WORKSPACE / DASHBOARD</p>
-            <h1>Dashboard</h1>
+            <p className="breadcrumb">WORKSPACE / {({ dashboard: 'DASHBOARD', profile: 'FOUNDATION / CAREER PROFILE', career: 'DIRECTION / CAREER PLANNING', skills: 'DEVELOPMENT / SKILL GAP ANALYSIS', interview: 'PREPARATION / INTERVIEW PRACTICE' } as const)[activePage]}</p>
+            <h1>{({ dashboard: 'Dashboard', profile: 'Career Profile', career: 'AI Career Planning', skills: 'Skill Gap Analysis', interview: 'Interview Preparation' } as const)[activePage]}</h1>
           </div>
 
           <div className="topbar-actions">
@@ -578,6 +640,8 @@ function App() {
           </p>
         )}
 
+        {activePage === 'dashboard' && (
+          <>
         <section className="welcome-banner">
           <div className="welcome-content">
             <span className="eyebrow">
@@ -591,7 +655,7 @@ function App() {
               path toward your dream career.
             </p>
 
-            <a className="primary-button" href="#profile-form">
+            <a className="primary-button" href="#profile-form" onClick={(event) => { event.preventDefault(); setActivePage('profile') }}>
               Set up your profile <span>→</span>
             </a>
           </div>
@@ -625,7 +689,7 @@ function App() {
                 in one place.
               </p>
 
-              <a href="#profile-form">
+              <a href="#profile-form" onClick={(event) => { event.preventDefault(); setActivePage('profile') }}>
                 Build your profile <span>→</span>
               </a>
             </article>
@@ -640,7 +704,7 @@ function App() {
                 education, skills, and career goal.
               </p>
 
-              <a href="#career-planner">
+              <a href="#career-planner" onClick={(event) => { event.preventDefault(); setActivePage('career') }}>
                 Create your roadmap <span>→</span>
               </a>
             </article>
@@ -655,7 +719,7 @@ function App() {
                 target role.
               </p>
 
-              <a className="feature-link" href="#skill-gap-analyzer">Analyze your skills <span>→</span></a>
+              <a className="feature-link" href="#skill-gap-analyzer" onClick={(event) => { event.preventDefault(); setActivePage('skills') }}>Analyze your skills <span>→</span></a>
             </article>
 
             <article className="feature-card" id="interview">
@@ -668,11 +732,16 @@ function App() {
                 structured practice.
               </p>
 
-              <a className="feature-link" href="#interview-preparation">Start practicing <span>→</span></a>
+              <a className="feature-link" href="#interview-preparation" onClick={(event) => { event.preventDefault(); setActivePage('interview') }}>Start practicing <span>→</span></a>
             </article>
           </div>
         </section>
 
+          </>
+        )}
+
+        {activePage === 'profile' && (
+          <>
         <section
           className="section-block profile-form-section"
           id="profile-form"
@@ -799,6 +868,11 @@ function App() {
           </form>
         </section>
 
+          </>
+        )}
+
+        {activePage === 'career' && (
+          <>
         {/* AI Career Planning */}
         <section
           className="section-block profile-form-section"
@@ -819,27 +893,28 @@ function App() {
           <div className="profile-form">
             <div className="form-field">
               <label>Education</label>
-              <p>{formValues.education.trim() || 'Not provided yet'}</p>
+              <p>{activeProfile?.education?.trim() || 'Not provided yet'}</p>
             </div>
 
             <div className="form-field">
               <label>Skills</label>
-              <p>{formValues.skills.trim() || 'Not provided yet'}</p>
+              <p>{activeProfile?.skills?.trim() || 'Not provided yet'}</p>
             </div>
 
             <div className="form-field">
               <label>Career goal</label>
               <p>
-                {formValues.career_goal.trim() || 'Not provided yet'}
+                {activeProfile?.career_goal?.trim() || 'Not provided yet'}
               </p>
             </div>
 
             <div className="profile-form-actions">
+              <button className="secondary-button" type="button" onClick={editActiveProfile}>Edit profile</button>
               <button
                 className="submit-button"
                 type="button"
                 onClick={() => void handleGenerateCareerPlan()}
-                disabled={careerPlanLoading}
+                disabled={careerPlanLoading || !activeProfile}
               >
                 {careerPlanLoading
                   ? 'Generating your roadmap...'
@@ -916,6 +991,11 @@ function App() {
           </div>
         </section>
 
+          </>
+        )}
+
+        {activePage === 'skills' && (
+          <>
         {/* AI Skill Gap Analysis */}
         <section
           className="section-block profile-form-section"
@@ -936,25 +1016,26 @@ function App() {
             <div className="form-field">
               <label>Current skills</label>
               <p>
-                {formValues.skills.trim() ||
-                  'Add your skills in your profile above'}
+                {activeProfile?.skills?.trim() ||
+                  'Add your skills in My Profile first'}
               </p>
             </div>
 
             <div className="form-field">
               <label>Target career</label>
               <p>
-                {formValues.career_goal.trim() ||
-                  'Add your career goal in your profile above'}
+                {activeProfile?.career_goal?.trim() ||
+                  'Add your career goal in My Profile first'}
               </p>
             </div>
 
             <div className="profile-form-actions">
+              <button className="secondary-button" type="button" onClick={editActiveProfile}>Edit profile</button>
               <button
                 className="submit-button"
                 type="button"
                 onClick={() => void handleGenerateSkillGap()}
-                disabled={skillGapLoading}
+                disabled={skillGapLoading || !activeProfile}
               >
                 {skillGapLoading
                   ? 'Analyzing your skills...'
@@ -1022,6 +1103,11 @@ function App() {
           </div>
         </section>
 
+          </>
+        )}
+
+        {activePage === 'interview' && (
+          <>
         {/* AI Interview Preparation */}
         <section className="section-block profile-form-section interview-section" id="interview-preparation">
           <div className="section-heading">
@@ -1092,6 +1178,11 @@ function App() {
           </div>
         </section>
 
+          </>
+        )}
+
+        {activePage === 'profile' && (
+          <>
         {/* Saved profiles */}
         <section className="section-block">
           <div className="section-heading">
@@ -1180,15 +1271,23 @@ function App() {
           </div>
         </section>
 
-        <footer className="app-footer">
-          <span>AI Career Copilot</span>
+          </>
+        )}
 
-          <span>
-            {projectInfo
-              ? `${projectInfo.project} · v${projectInfo.version}`
-              : 'Career growth, one step at a time'}
-          </span>
-        </footer>
+      <footer className="app-footer">
+  <div className="footer-branding">
+    <span className="footer-title">AI Career Copilot</span>
+    <span className="footer-author">
+      Designed &amp; Developed by SURYAM TOMAR
+    </span>
+  </div>
+
+  <span className="footer-version">
+    {projectInfo
+      ? `${projectInfo.project} · v${projectInfo.version}`
+      : 'Career growth, one step at a time'}
+  </span>
+</footer>
       </main>
     </div>
   )

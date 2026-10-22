@@ -168,8 +168,17 @@ button { color: inherit; }
 .secondary-button:disabled, .edit-button:disabled, .delete-button:disabled { cursor: not-allowed; opacity: .6; }
 .profile-card-actions { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 
+/* AI reports are children of the two-column profile-form grid. Make every
+   generated report span the full available row instead of one half-column. */
+.career-plan-result,
+.interview-result {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
 .career-plan-result { margin-top: 24px; padding: clamp(17px, 2.5vw, 26px); border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); }
-.career-plan-content { padding: clamp(15px, 2.4vw, 26px); border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface); }
+.career-plan-content { width: 100%; min-width: 0; max-width: none; padding: clamp(15px, 2.4vw, 26px); border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface); }
 .markdown-report { overflow-wrap: anywhere; line-height: 1.8; }
 .markdown-report h1, .markdown-report h2, .markdown-report h3, .markdown-report h4 { margin: 1.3rem 0 .65rem; line-height: 1.35; color: var(--text); font-family: 'Manrope', sans-serif; }
 .markdown-report h1:first-child, .markdown-report h2:first-child, .markdown-report h3:first-child { margin-top: 0; }
@@ -222,6 +231,122 @@ button { color: inherit; }
   .profile-form-section { padding: 16px; }
   .feature-card, .saved-profile-card { padding: 18px; }
   .topbar-actions { align-items: flex-start; flex-direction: column; }
+}
+
+
+/* Mobile navigation and narrow-screen layout refinements.
+   Keep desktop styling unchanged and make all navigation labels readable
+   on 320px phones without horizontal scrolling. */
+@media (max-width: 760px) {
+  .navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .nav-item {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    gap: 7px;
+    padding: 10px 9px;
+  }
+
+  .nav-item > span {
+    flex: 0 0 17px;
+    width: 17px;
+    font-size: 15px;
+  }
+
+  .main-content,
+  .profile-form-section,
+  .profile-form,
+  .career-plan-result,
+  .career-plan-content,
+  .interview-result,
+  .markdown-report {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .profile-form > *,
+  .profile-form-actions > *,
+  .section-heading > *,
+  .topbar > * {
+    min-width: 0;
+  }
+
+  .markdown-report img,
+  .markdown-report video,
+  .markdown-report iframe {
+    max-width: 100%;
+  }
+
+  .markdown-report pre,
+  .markdown-report table {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .sidebar {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-item {
+    font-size: 10px;
+    padding: 9px 8px;
+  }
+
+  .main-content {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .theme-toggle,
+  .connection-status {
+    max-width: 100%;
+    padding: 9px 10px;
+    font-size: 10px;
+  }
+
+  .career-plan-result,
+  .interview-result {
+    padding: 14px;
+  }
+
+  .career-plan-content {
+    padding: 13px;
+  }
+
+  .markdown-report {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-form-actions {
+    gap: 8px;
+  }
 }
 
 /* Print only the report selected by its own Print / Save as PDF button. */
@@ -357,6 +482,68 @@ button { color: inherit; }
     overflow-wrap: anywhere !important;
   }
 
+  /* PDF report header: force a clean vertical layout and strong contrast.
+     Theme-specific screen rules can otherwise leave the report title too light. */
+  .career-plan-result.print-selected .section-heading {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 14px !important;
+    padding: 0 0 10px !important;
+    border-bottom: 1px solid #d1d5db !important;
+    text-align: left !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .career-plan-result.print-selected .section-heading > div {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: none !important;
+  }
+
+  .career-plan-result.print-selected .section-heading .eyebrow {
+    display: block !important;
+    margin: 0 0 5px !important;
+    color: #4b5563 !important;
+    font-size: 8.5pt !important;
+    font-weight: 700 !important;
+    letter-spacing: 1.1px !important;
+    line-height: 1.4 !important;
+  }
+
+  .career-plan-result.print-selected .section-heading h2,
+  :root[data-theme='dark'] .career-plan-result.print-selected .section-heading h2,
+  :root:not([data-theme='dark']) .career-plan-result.print-selected .section-heading h2 {
+    display: block !important;
+    margin: 0 0 7px !important;
+    padding: 0 !important;
+    color: #111827 !important;
+    font-size: 20pt !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .career-plan-result.print-selected .section-heading p,
+  :root[data-theme='dark'] .career-plan-result.print-selected .section-heading p,
+  :root:not([data-theme='dark']) .career-plan-result.print-selected .section-heading p {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #374151 !important;
+    font-size: 10pt !important;
+    line-height: 1.5 !important;
+    font-weight: 400 !important;
+  }
+
+  /* Keep the report body readable and separated from the header. */
+  .career-plan-result.print-selected .career-plan-content {
+    margin-top: 0 !important;
+  }
+
   /* Avoid a large empty top area from screen-only spacing and rounded panels. */
   .career-plan-result.print-selected > :first-child {
     margin-top: 0 !important;
@@ -394,3 +581,284 @@ button { color: inherit; }
 .interview-answer-form .form-field textarea { min-height: 90px; }
 .interview-answer-form .profile-form-actions { margin-top: 2px; }
 @media (max-width: 760px) { .interview-form-submit { width: 100%; } .interview-form-submit .submit-button { width: 100%; } }
+
+/* ==========================================
+   P5 UI/UX POLISH — CONSISTENCY & ACCESSIBILITY
+   Append below the existing App.css styles.
+   ========================================== */
+
+/* Consistent interactions */
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+/* Consistent button behavior */
+.primary-button,
+.submit-button,
+.secondary-button,
+.edit-button,
+.delete-button,
+.theme-toggle {
+  min-height: 40px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.secondary-button:disabled,
+.edit-button:disabled,
+.delete-button:disabled,
+.submit-button:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
+/* More consistent card appearance */
+.feature-card,
+.saved-profile-card,
+.profile-form-section,
+.profile-preview,
+.career-plan-result,
+.interview-result {
+  border-color: var(--border);
+  background-color: var(--surface);
+}
+
+/* Prevent long content from breaking card layouts */
+.feature-card,
+.saved-profile-card,
+.profile-form-section,
+.career-plan-result,
+.interview-result,
+.career-plan-content,
+.markdown-report {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.markdown-report {
+  line-height: 1.75;
+}
+
+.markdown-report h1,
+.markdown-report h2,
+.markdown-report h3,
+.markdown-report h4 {
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.markdown-report p,
+.markdown-report li {
+  overflow-wrap: anywhere;
+}
+
+.markdown-report pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.markdown-report table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-report th,
+.markdown-report td {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+/* Respect the selected theme in report tables */
+.markdown-report th {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.markdown-report td {
+  color: var(--muted);
+}
+
+/* Make empty/loading messages easier to notice */
+.section-block > p:not(.error-message) {
+  line-height: 1.7;
+}
+
+.form-success {
+  line-height: 1.6;
+}
+
+/* Improve narrow-screen readability */
+@media (max-width: 760px) {
+  .section-block {
+    margin-top: 28px;
+  }
+
+  .section-heading {
+    gap: 12px;
+  }
+
+  .markdown-report table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .markdown-report th,
+  .markdown-report td {
+    min-width: 110px;
+  }
+
+  .profile-preview-status {
+    white-space: normal;
+  }
+}
+
+/* Keep animations comfortable for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .feature-card:hover,
+  .primary-button:hover,
+  .submit-button:hover:not(:disabled),
+  .theme-toggle:hover {
+    transform: none;
+  }
+}
+
+/* P5: Application footer branding */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 24px 0 12px;
+  margin-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.footer-branding {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.footer-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.footer-author {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+}
+
+.footer-version {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .app-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ==========================================
+   P5: Dashboard feature-card alignment
+   ========================================== */
+
+.feature-grid {
+  align-items: stretch;
+}
+
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.feature-card .feature-icon {
+  flex-shrink: 0;
+}
+
+.feature-card .card-label {
+  margin-top: 12px;
+}
+
+.feature-card h3 {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-card > p {
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.feature-card > a {
+  align-self: flex-start;
+  margin-top: auto;
+  padding-top: 12px;
+  line-height: 1.6;
+}
+
+.feature-card > a:focus-visible {
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Keep cards comfortable on smaller screens */
+@media (max-width: 760px) {
+  .feature-card {
+    height: auto;
+  }
+
+  .feature-card h3 {
+    min-height: 0;
+  }
+
+  .feature-card > p {
+    flex-grow: 0;
+  }
+
+  .feature-card > a {
+    margin-top: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-card {
+    transition: none;
+  }
+}

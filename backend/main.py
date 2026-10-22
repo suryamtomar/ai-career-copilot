@@ -496,33 +496,40 @@ Be constructive and realistic. Do not claim the answer guarantees interview succ
 
 @app.post("/api/profiles")
 def create_profile(profile: UserProfileCreate):
-    with get_db_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO user_profiles
-                    (full_name, education, skills, career_goal)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, full_name, education, skills,
-                          career_goal, created_at
-                """,
-                (
-                    profile.full_name,
-                    profile.education,
-                    profile.skills,
-                    profile.career_goal,
-                ),
-            )
-            row = cursor.fetchone()
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO user_profiles
+                        (full_name, education, skills, career_goal)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, full_name, education, skills,
+                              career_goal, created_at
+                    """,
+                    (
+                        profile.full_name,
+                        profile.education,
+                        profile.skills,
+                        profile.career_goal,
+                    ),
+                )
+                row = cursor.fetchone()
 
-    return {
-        "id": row[0],
-        "full_name": row[1],
-        "education": row[2],
-        "skills": row[3],
-        "career_goal": row[4],
-        "created_at": row[5],
-    }
+        return {
+            "id": row[0],
+            "full_name": row[1],
+            "education": row[2],
+            "skills": row[3],
+            "career_goal": row[4],
+            "created_at": row[5],
+        }
+    except psycopg.Error:
+        logging.exception("Database operation failed in create_profile")
+        raise HTTPException(
+            status_code=503,
+            detail="Database operation failed. Please try again later.",
+        )
 
 
 # --------------------------------------------------
@@ -531,29 +538,36 @@ def create_profile(profile: UserProfileCreate):
 
 @app.get("/api/profiles")
 def get_profiles():
-    with get_db_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id, full_name, education, skills,
-                       career_goal, created_at
-                FROM user_profiles
-                ORDER BY id
-                """
-            )
-            rows = cursor.fetchall()
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, full_name, education, skills,
+                           career_goal, created_at
+                    FROM user_profiles
+                    ORDER BY id
+                    """
+                )
+                rows = cursor.fetchall()
 
-    return [
-        {
-            "id": row[0],
-            "full_name": row[1],
-            "education": row[2],
-            "skills": row[3],
-            "career_goal": row[4],
-            "created_at": row[5],
-        }
-        for row in rows
-    ]
+        return [
+            {
+                "id": row[0],
+                "full_name": row[1],
+                "education": row[2],
+                "skills": row[3],
+                "career_goal": row[4],
+                "created_at": row[5],
+            }
+            for row in rows
+        ]
+    except psycopg.Error:
+        logging.exception("Database operation failed in get_profiles")
+        raise HTTPException(
+            status_code=503,
+            detail="Database operation failed. Please try again later.",
+        )
 
 
 # --------------------------------------------------
@@ -562,33 +576,40 @@ def get_profiles():
 
 @app.get("/api/profiles/{profile_id}")
 def get_profile(profile_id: int):
-    with get_db_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id, full_name, education, skills,
-                       career_goal, created_at
-                FROM user_profiles
-                WHERE id = %s
-                """,
-                (profile_id,),
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, full_name, education, skills,
+                           career_goal, created_at
+                    FROM user_profiles
+                    WHERE id = %s
+                    """,
+                    (profile_id,),
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Profile not found",
             )
-            row = cursor.fetchone()
 
-    if row is None:
+        return {
+            "id": row[0],
+            "full_name": row[1],
+            "education": row[2],
+            "skills": row[3],
+            "career_goal": row[4],
+            "created_at": row[5],
+        }
+    except psycopg.Error:
+        logging.exception("Database operation failed in get_profile")
         raise HTTPException(
-            status_code=404,
-            detail="Profile not found",
+            status_code=503,
+            detail="Database operation failed. Please try again later.",
         )
-
-    return {
-        "id": row[0],
-        "full_name": row[1],
-        "education": row[2],
-        "skills": row[3],
-        "career_goal": row[4],
-        "created_at": row[5],
-    }
 
 
 # --------------------------------------------------
@@ -597,43 +618,50 @@ def get_profile(profile_id: int):
 
 @app.put("/api/profiles/{profile_id}")
 def update_profile(profile_id: int, profile: UserProfileCreate):
-    with get_db_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE user_profiles
-                SET full_name = %s,
-                    education = %s,
-                    skills = %s,
-                    career_goal = %s
-                WHERE id = %s
-                RETURNING id, full_name, education, skills,
-                          career_goal, created_at
-                """,
-                (
-                    profile.full_name,
-                    profile.education,
-                    profile.skills,
-                    profile.career_goal,
-                    profile_id,
-                ),
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE user_profiles
+                    SET full_name = %s,
+                        education = %s,
+                        skills = %s,
+                        career_goal = %s
+                    WHERE id = %s
+                    RETURNING id, full_name, education, skills,
+                              career_goal, created_at
+                    """,
+                    (
+                        profile.full_name,
+                        profile.education,
+                        profile.skills,
+                        profile.career_goal,
+                        profile_id,
+                    ),
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Profile not found",
             )
-            row = cursor.fetchone()
 
-    if row is None:
+        return {
+            "id": row[0],
+            "full_name": row[1],
+            "education": row[2],
+            "skills": row[3],
+            "career_goal": row[4],
+            "created_at": row[5],
+        }
+    except psycopg.Error:
+        logging.exception("Database operation failed in update_profile")
         raise HTTPException(
-            status_code=404,
-            detail="Profile not found",
+            status_code=503,
+            detail="Database operation failed. Please try again later.",
         )
-
-    return {
-        "id": row[0],
-        "full_name": row[1],
-        "education": row[2],
-        "skills": row[3],
-        "career_goal": row[4],
-        "created_at": row[5],
-    }
 
 
 # --------------------------------------------------
@@ -642,25 +670,32 @@ def update_profile(profile_id: int, profile: UserProfileCreate):
 
 @app.delete("/api/profiles/{profile_id}")
 def delete_profile(profile_id: int):
-    with get_db_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                DELETE FROM user_profiles
-                WHERE id = %s
-                RETURNING id
-                """,
-                (profile_id,),
+    try:
+        with get_db_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM user_profiles
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    (profile_id,),
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Profile not found",
             )
-            row = cursor.fetchone()
 
-    if row is None:
+        return {
+            "message": "Profile deleted successfully",
+            "id": row[0],
+        }
+    except psycopg.Error:
+        logging.exception("Database operation failed in delete_profile")
         raise HTTPException(
-            status_code=404,
-            detail="Profile not found",
+            status_code=503,
+            detail="Database operation failed. Please try again later.",
         )
-
-    return {
-        "message": "Profile deleted successfully",
-        "id": row[0],
-    }
